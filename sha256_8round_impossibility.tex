@@ -1,0 +1,85 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath, amssymb, amsthm}
+\usepackage{hyperref}
+
+\title{On the Impossibility of 8-Round Collisions in SHA-256}
+\author{David Molnar}
+\date{\today}
+
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}[theorem]{Lemma}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+We present a deterministic proof that the first 8 rounds of the SHA-256 compression function form a bijection between the 256-bit message prefix and the 256-bit intermediate state. Consequently, it is mathematically impossible to construct an 8-round collision in SHA-256 when subsequent message words are constrained to be equal.
+\end{abstract}
+
+\section{Introduction}
+The SHA-256 compression function processes 512-bit message blocks to update a 256-bit internal state over 64 rounds. In the context of differential cryptanalysis, finding reduced-round collisions is a standard benchmark. While SAT and Satisfiability Modulo Theories (SMT) solvers (e.g., Z3) are frequently used to automate collision search, they often fail or hang even on highly reduced round counts. In this note, we demonstrate analytically that for $N \le 8$ rounds, a collision is impossible because the compression function is perfectly bijective with respect to the first 8 message words.
+
+\section{State Update Function}
+Let $S_t = (a_t, b_t, c_t, d_t, e_t, f_t, g_t, h_t)$ be the 256-bit state at the start of round $t$. The SHA-256 state update for round $t$ (where $0 \le t \le 63$) given message word $W_t$ is defined as:
+\begin{align}
+    T_{1,t} &= h_t + \Sigma_1(e_t) + Ch(e_t, f_t, g_t) + K_t + W_t \\
+    T_{2,t} &= \Sigma_0(a_t) + Maj(a_t, b_t, c_t) \\
+    a_{t+1} &= T_{1,t} + T_{2,t} \\
+    e_{t+1} &= d_t + T_{1,t}
+\end{align}
+with the remaining state variables shifting directly:
+$b_{t+1} = a_t$, $c_{t+1} = b_t$, $d_{t+1} = c_t$, $f_{t+1} = e_t$, $g_{t+1} = f_t$, $h_{t+1} = g_t$.
+
+\section{Proof of Bijection}
+\begin{theorem}
+Given a fixed initial state $S_0$, the 8-round output state $S_8$ uniquely determines the message words $W_0, \dots, W_7$.
+\end{theorem}
+\begin{proof}
+First, observe that $T_{1,t}$ can be eliminated by subtracting the equations for $a_{t+1}$ and $e_{t+1}$:
+\begin{equation}
+    a_{t+1} - e_{t+1} = T_{2,t} - d_t = \Sigma_0(a_t) + Maj(a_t, b_t, c_t) - d_t \label{eq:diff}
+\end{equation}
+Because of the shift registers, the state $S_8$ explicitly contains the historical values of the $a$ and $e$ registers:
+\begin{align*}
+    S_8 = (&a_8, \\
+           &b_8 = a_7, \\
+           &c_8 = a_6, \\
+           &d_8 = a_5, \\
+           &e_8, \\
+           &f_8 = e_7, \\
+           &g_8 = e_6, \\
+           &h_8 = e_5)
+\end{align*}
+Thus, from $S_8$ alone, we know the exact values of $a_5, a_6, a_7, a_8$ and $e_5, e_6, e_7, e_8$. 
+
+By setting $t=7$ in Equation~\ref{eq:diff}, we have:
+\begin{equation}
+    a_8 - e_8 = \Sigma_0(a_7) + Maj(a_7, a_6, a_5) - d_7
+\end{equation}
+Since $d_7 = c_6 = b_5 = a_4$, we can solve uniquely for $a_4$:
+\begin{equation}
+    a_4 = \Sigma_0(a_7) + Maj(a_7, a_6, a_5) - (a_8 - e_8)
+\end{equation}
+All terms on the right-hand side are known directly from $S_8$. Therefore, $a_4$ is uniquely determined. 
+
+By recursively stepping backwards ($t=6, 5, 4$), we can uniquely determine $a_3, a_2,$ and $a_1$:
+\begin{align}
+    a_3 &= \Sigma_0(a_6) + Maj(a_6, a_5, a_4) - (a_7 - e_7) \\
+    a_2 &= \Sigma_0(a_5) + Maj(a_5, a_4, a_3) - (a_6 - e_6) \\
+    a_1 &= \Sigma_0(a_4) + Maj(a_4, a_3, a_2) - (a_5 - e_5)
+\end{align}
+Because the initial state $S_0$ is fixed, we also know $a_0, b_0, c_0, d_0$. Thus, the entire sequence $a_0, \dots, a_8$ is perfectly known.
+
+Since $a_{t+1} - e_{t+1}$ depends only on variables from round $t$ that are now known ($a_t, b_t, c_t, d_t$), the entire sequence $e_1, \dots, e_8$ is also uniquely determined.
+
+With the full state trajectory $S_0 \to S_8$ fixed, the message words $W_t$ are uniquely recovered by inverting the state update:
+\begin{equation}
+    W_t = a_{t+1} - T_{2,t} - h_t - \Sigma_1(e_t) - Ch(e_t, f_t, g_t) - K_t
+\end{equation}
+Since both the domain space ($W_0, \dots, W_7$) and the image space ($S_8$) are exactly 256 bits, this injective mapping is a perfect bijection. Consequently, it is mathematically impossible for two distinct 8-word message prefixes to produce the same 8-round state.
+\end{proof}
+
+\section{Conclusion}
+We have shown that 8-round collisions in SHA-256 are mathematically impossible due to the bijectivity of the state update over the first 8 rounds. Any differential path targeting reduced-round SHA-256 must span a minimum of 9 rounds to allow the degrees of freedom in $W_8$ to absorb the differences injected by $W_0$.
+\end{document}
