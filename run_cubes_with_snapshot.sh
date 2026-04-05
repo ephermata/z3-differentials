@@ -19,7 +19,7 @@ for cube in $CUBES_DIR/*.cnf; do
     fi
     
     echo "Starting $cube..."
-    $KISSAT_BIN $cube > $result_file &
+    $KISSAT_BIN --relaxed $cube > $result_file &
     KISSAT_PID=$!
     
     # Start snapshot script in background (runs every hour)
